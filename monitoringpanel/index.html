@@ -1,0 +1,52 @@
+<html>
+<head>
+<!-- Перед использованием поменяйте monitoring.example.com на адрес сервера мониторинга, а text_to_speech.example.com на адрес сервера синтеза речи-->
+<script src="http://monitoring.example.com:81/jquery.js"></script>
+<script>
+var msg_queue = [];
+msg_queue[0] = 'queue is started';
+//msg_queue[1] = 'Здравствуй, хозяина.';	// Раскомментировать, чтобы произносить при открытии страницы.
+// msg_queue[2] = 'Я пришел работать.';
+var active_msg = 0;
+var playing = false;
+
+function queue_add_msg(msg) {
+  msg_queue[msg_queue.length] = msg;
+}
+
+function queue_number() {
+  jQuery('#queue-number').html(msg_queue.length-active_msg);
+}
+
+function play_next() {
+  if ( active_msg < (msg_queue.length-1) ) {	// if active_msg is not last, then play active_msq+1
+    playing = true;
+    active_msg++;
+    queue_number();
+    jQuery('#msg-block').prepend("<div id='msg-block-"+active_msg+"' style='border: 1px; border-bottom: 1px solid #ccc;'>"+msg_queue[active_msg]+"</div>");
+    jQuery('#wav-block').html('<audio controls="controls" autoplay onended = "play_next();" > <source src="http://text_to_speech.example.com/wav?text=' + msg_queue[active_msg] +'" type="audio/wav" mediagroup="monitoring" />You browser not support audio!</audio>');  
+  }
+  else if ( active_msg == msg_queue.length-1 ) {		// if not more message
+    playing = false;
+  }
+  else {alert(active_msg); alert( msg_queue.length);}
+}
+</script>
+<script src="http://monitoring.example.com:81/socket.io/socket.io.js"></script>
+<script>
+  var socket = io.connect('http://monitoring.example.com:81');
+  socket.on('monitoringpanel', function (data) {
+    queue_add_msg(data['msg']);
+    if (!playing) { play_next(); }
+  });
+</script>
+<script>
+</script>
+</head>
+<body onLoad='play_next();'>
+<div id="queue-number"></div>
+<div id="wav-block" style="height:70px;"> start <br />
+</div>
+<div id="msg-block"></div>
+</body>
+</html>

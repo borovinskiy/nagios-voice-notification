@@ -1,0 +1,1 @@
+text from command.cfg must be added to your nagios etc/objects/command.cfg file

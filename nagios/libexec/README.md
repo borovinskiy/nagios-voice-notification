@@ -1,0 +1,1 @@
+this files must be copy to nagios libexec folder

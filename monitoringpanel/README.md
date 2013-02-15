@@ -1,0 +1,1 @@
+copy this files into /opt/monitoringpanel on nagios server
