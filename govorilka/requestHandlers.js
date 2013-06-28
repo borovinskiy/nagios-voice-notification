@@ -1,1 +1,188 @@
-var querystring = require("querystring");var child_process = require("child_process");var crypto = require("crypto");function start(response, postData, getData) {  console.log("Request handler 'start' was called.");  var body = '<html>'+    '<head>'+    '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'+    '</head>'+    '<body>'+    '<form action="/audiomessage" method="post">'+    '<textarea name="text" rows="20" cols="60"></textarea><br />'+    '<input type="submit" value="Submit text" />'+    '</form>'+    '</body>'+    '</html>';    response.writeHead(200, {"Content-Type": "text/html"});    response.write(body);    response.end();}function upload(response, postData, getData) {  console.log("Request handler 'upload' was called.");  response.writeHead(200, {"Content-Type": "text/html"});  response.write("You've sent the text: " + querystring.parse(postData)["text"]);  response.end();}function audiomessage(response, postData, getData) {  console.log("Request handler 'audiomessage' was called.");  //response.writeHead(200, {"Content-Type": "text/html"});  console.log('GET DATA TEXT: '+querystring.parse(getData)["text"]);	// comment in ANSI codepage  var text = querystring.parse(getData)["text"];						// ищем текст, который будем переводить в музыку как параметр get ?text=message%20for%20user  if (!text || text.length == 0) {	text = querystring.parse(postData)["text"];	// если параметр text как GET не задан, то берем его как post  }  if (text && text.length > 0) {	var fs = require("fs");	var file_hash = crypto.createHash('md5').update(text).digest('hex');  	// Считаем хеш от текста, который будем произносить	console.log('md5 hash is: ' + file_hash);	var filename = file_hash;	var file = 'tmp/' + filename + '.txt';			var file_cp1251 = 'tmp/' + filename + '.cp1251.txt';				// файл в кодировке cp1251	var file_cp1251_govorilka = 'c:\\govorilka\\tmp\\' + filename + '.cp1251.txt'; // тот же файл но с windows путем для говорилки	var file_wav = 'wav/' + filename + '.wav';				// wav - файл	var file_wav_govorilka = 'c:\\govorilka\\wav\\' + filename + '.wav';  // wav - файл с путем для говорилки		// теперь проверим что такой wav файл не был сгенерирован ранее, если он уже сгенерирован, то вернем его без новой генерации	fs.open(file_wav,'r',0664,function(err,file_handle){	  if (!err) {		fs.close(file_handle);		html_out_wav(response,file_wav);		// если звуковой файл с таким текстом уже существует, сразу отдадим его пользователю	  }	  else{			fs.open(file,'w', 0664,function(err,file_handle){			if (!err) {		// если открыли файл на запись и текст не undifined				fs.write(file_handle, text, null, 'utf-8', function(err,write){		// записываем сообщение text в файл file					if (!err) {						fs.close(file_handle);		// здесь можно проверить что закрыли нормально. но не будем этого делать.						var iconv = child_process.spawn('iconv',['-f','utf-8','-t','Windows-1251',file]);						console.log('start iconv to file: '+file+'.cp1251');						iconv.stderr.on('data', function(data){							console.log('error: '+data);						});						iconv.stdout.on('data',function (data) {							fs2 = require("fs");							fs2.open(file_cp1251,'a+',0664,function(err,filecp1251_handle) {								if (!err) {									console.log('file write data: '+data);									console.log('file cp1251 handle is '+filecp1251_handle.toString());									fs2.write(filecp1251_handle, data, undefined, data.length, null, function(err,write){										if (!err) {											fs2.close(filecp1251_handle);		// закрываем текстовый файл										} else {											console.log('error: can not write to file');											fs2.close(filecp1251_handle);		// закрываем текстовый файл если возникла ошибка										}									});								} else {								console.log('error: can not write iconv cp1251 file');								}								});						});							iconv.on('exit', function (data) { 			// после завершения конвертации текстового файла в cp1251, необходимо вызвать говорилку							console.log('iconv is end');							var govorilka = child_process.spawn('c:\\govorilka\\govorilka_cp\\Govorilka_cp.exe',['-I', '-F', file_cp1251_govorilka, '-TO', file_wav_govorilka]);							console.log('run govorilka: c:\\govorilka\\govorilka_cp\\Govorilka_cp.exe -I -F '+file_cp1251_govorilka+' -TO '+file_wav_govorilka);							govorilka.stdout.on('data', function (data) {								console.log('stdout: ' + data);							});							govorilka.stderr.on('data', function (data) {								console.log('stderr: ' + data);							});							govorilka.on('exit', function (code) {										// wav файл создан, теперь надо отдать его пользователю										html_out_wav(response,file_wav);								console.log('child process exited with code ' + code);							});						});						} else {						console.log('error: can not write text ' + text + ' into file ' + file);	// не смогли записать сообщение во временный файл					}					});			} else {				console.log('error: can not opened file ' + file + ' for writing' );			}			});	//end file open	  }				// end create file if hash.wav not exist	});				// end stop for user process  }		// end if (text)}// выводит в бинарном виде файл wav c путем filepath в браузерfunction html_out_wav(response,file_wav) {	fs = require("fs");	// wav файл создан, теперь надо отдать его пользователю	response.writeHead(200, {"Content-Type": "audio/x-wav"});										//response.writeHead(200, {"Content-Type": "text/html"});										//fs2.readFile(file_cp1251,'binary',function(err,data){										//	if (!err) {										//		response.write(data);											//	} else {										//		console.log('error: can not reading wav file');										//	}											//});	var body = fs.readFileSync(file_wav,'binary');	console.log('wav file length: '+body.length);	response.write(body,'binary');										//fs2.createReadStream(file_wav).pipe(response);	response.end();	console.log('wav file is downloaded');}exports.audiomessage = audiomessage;exports.start = start;exports.upload = upload;
+var querystring = require("querystring");
+var child_process = require("child_process");
+var crypto = require("crypto");
+
+
+function start(response, postData, getData) {
+  console.log("Request handler 'start' was called.");
+
+  var body = '<html>'+
+    '<head>'+
+    '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'+
+    '</head>'+
+    '<body>'+
+    '<form action="/audiomessage" method="post">'+
+    '<textarea name="text" rows="20" cols="60"></textarea><br />'+
+    '<input type="submit" value="Submit text" />'+
+    '</form>'+
+    '</body>'+
+    '</html>';
+
+    response.writeHead(200, {"Content-Type": "text/html"});
+    response.write(body);
+    response.end();
+}
+
+function upload(response, postData, getData) {
+  console.log("Request handler 'upload' was called.");
+  response.writeHead(200, {"Content-Type": "text/html"});
+  response.write("You've sent the text: " + querystring.parse(postData)["text"]);
+  response.end();
+}
+
+function mp3(response, postData, getData) {
+	audiomessage(response, postData, getData, "mp3");
+}
+
+function wav(response, postData, getData) {
+	audiomessage(response, postData, getData, "wav");
+}
+
+function audiomessage(response, postData, getData, extension) {
+  console.log("Request handler 'audiomessage' was called.");
+  //response.writeHead(200, {"Content-Type": "text/html"});
+  console.log('GET DATA TEXT: '+querystring.parse(getData)["text"]);	// comment in ANSI codepage
+  var text = querystring.parse(getData)["text"];						// РёС‰РµРј С‚РµРєСЃС‚, РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµРј РїРµСЂРµРІРѕРґРёС‚СЊ РІ РјСѓР·С‹РєСѓ РєР°Рє РїР°СЂР°РјРµС‚СЂ get ?text=message%20for%20user
+  if (!text || text.length == 0) {
+	text = querystring.parse(postData)["text"];	// РµСЃР»Рё РїР°СЂР°РјРµС‚СЂ text РєР°Рє GET РЅРµ Р·Р°РґР°РЅ, С‚Рѕ Р±РµСЂРµРј РµРіРѕ РєР°Рє post
+  }
+  if (text && text.length > 0) {
+	var fs = require("fs");
+	var file_hash = crypto.createHash('md5').update(text).digest('hex');  	// РЎС‡РёС‚Р°РµРј С…РµС€ РѕС‚ С‚РµРєСЃС‚Р°, РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµРј РїСЂРѕРёР·РЅРѕСЃРёС‚СЊ
+	console.log('md5 hash is: ' + file_hash);
+	var filename = file_hash;
+	var file = 'tmp/' + filename + '.txt';		
+	var file_cp1251 = 'tmp/' + filename + '.cp1251.txt';				// С„Р°Р№Р» РІ РєРѕРґРёСЂРѕРІРєРµ cp1251
+	var file_cp1251_govorilka = 'c:\\govorilka\\tmp\\' + filename + '.cp1251.txt'; // С‚РѕС‚ Р¶Рµ С„Р°Р№Р» РЅРѕ СЃ windows РїСѓС‚РµРј РґР»СЏ РіРѕРІРѕСЂРёР»РєРё
+	var file_wav = 'wav/' + filename + '.wav';				// wav - С„Р°Р№Р»
+	var file_wav_govorilka = 'c:\\govorilka\\wav\\' + filename + '.wav';  // wav - С„Р°Р№Р» СЃ РїСѓС‚РµРј РґР»СЏ РіРѕРІРѕСЂРёР»РєРё
+	var file_mp3 = 'mp3/' + filename + '.mp3';
+	
+	// С‚РµРїРµСЂСЊ РїСЂРѕРІРµСЂРёРј С‡С‚Рѕ С‚Р°РєРѕР№ wav С„Р°Р№Р» РЅРµ Р±С‹Р» СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅ СЂР°РЅРµРµ, РµСЃР»Рё РѕРЅ СѓР¶Рµ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅ, С‚Рѕ РІРµСЂРЅРµРј РµРіРѕ Р±РµР· РЅРѕРІРѕР№ РіРµРЅРµСЂР°С†РёРё
+	fs.open(file_wav,'r',0664,function(err,file_handle){
+	  if (!err) {
+		fs.close(file_handle);
+		html_out_wav(response,file_wav);		// РµСЃР»Рё Р·РІСѓРєРѕРІРѕР№ С„Р°Р№Р» СЃ С‚Р°РєРёРј С‚РµРєСЃС‚РѕРј СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚, СЃСЂР°Р·Сѓ РѕС‚РґР°РґРёРј РµРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ
+	  }
+	  else{
+
+
+	
+		fs.open(file,'w', 0664,function(err,file_handle){
+			if (!err) {		// РµСЃР»Рё РѕС‚РєСЂС‹Р»Рё С„Р°Р№Р» РЅР° Р·Р°РїРёСЃСЊ Рё С‚РµРєСЃС‚ РЅРµ undifined
+				fs.write(file_handle, text, null, 'utf-8', function(err,write){		// Р·Р°РїРёСЃС‹РІР°РµРј СЃРѕРѕР±С‰РµРЅРёРµ text РІ С„Р°Р№Р» file
+					if (!err) {
+						fs.close(file_handle);		// Р·РґРµСЃСЊ РјРѕР¶РЅРѕ РїСЂРѕРІРµСЂРёС‚СЊ С‡С‚Рѕ Р·Р°РєСЂС‹Р»Рё РЅРѕСЂРјР°Р»СЊРЅРѕ. РЅРѕ РЅРµ Р±СѓРґРµРј СЌС‚РѕРіРѕ РґРµР»Р°С‚СЊ.
+						var iconv = child_process.spawn('iconv',['-f','utf-8','-t','Windows-1251',file]);
+						console.log('start iconv to file: '+file+'.cp1251');
+						iconv.stderr.on('data', function(data){
+							console.log('error: '+data);
+						});
+						iconv.stdout.on('data',function (data) {
+							fs2 = require("fs");
+							fs2.open(file_cp1251,'w',0664,function(err,filecp1251_handle) {
+								if (!err) {
+									console.log('file write data: '+data);
+									console.log('file cp1251 handle is '+filecp1251_handle.toString());
+									fs2.write(filecp1251_handle, data, undefined, data.length, 0, function(err,write){
+										if (!err) {
+											fs2.close(filecp1251_handle);		// Р·Р°РєСЂС‹РІР°РµРј С‚РµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р»
+										} else {
+											console.log('error: can not write to file');
+											fs2.close(filecp1251_handle);		// Р·Р°РєСЂС‹РІР°РµРј С‚РµРєСЃС‚РѕРІС‹Р№ С„Р°Р№Р» РµСЃР»Рё РІРѕР·РЅРёРєР»Р° РѕС€РёР±РєР°
+										}
+									});
+								} else {
+								console.log('error: can not write iconv cp1251 file');
+								}	
+							});
+						});	
+						iconv.on('exit', function (data) { 			// РїРѕСЃР»Рµ Р·Р°РІРµСЂС€РµРЅРёСЏ РєРѕРЅРІРµСЂС‚Р°С†РёРё С‚РµРєСЃС‚РѕРІРѕРіРѕ С„Р°Р№Р»Р° РІ cp1251, РЅРµРѕР±С…РѕРґРёРјРѕ РІС‹Р·РІР°С‚СЊ РіРѕРІРѕСЂРёР»РєСѓ
+							console.log('iconv is end');
+							var govorilka = child_process.spawn('c:\\govorilka\\govorilka_cp\\Govorilka_cp.exe',['-I', '-F', file_cp1251_govorilka, '-TO', file_wav_govorilka]);
+							console.log('run govorilka: c:\\govorilka\\govorilka_cp\\Govorilka_cp.exe -I -F '+file_cp1251_govorilka+' -TO '+file_wav_govorilka);
+							govorilka.stdout.on('data', function (data) {
+								console.log('stdout: ' + data);
+							});
+							govorilka.stderr.on('data', function (data) {
+								console.log('stderr: ' + data);
+							});
+							govorilka.on('exit', function (code) {
+										// wav С„Р°Р№Р» СЃРѕР·РґР°РЅ, С‚РµРїРµСЂСЊ РЅР°РґРѕ РѕС‚РґР°С‚СЊ РµРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ
+										var ffmpeg = child_process.spawn('c:\\govorilka\\bin\\ffmpeg.exe',['-i',file_wav,file_mp3,'-y']);										
+										console.log("run ffmpeg convert wav to mp3");
+										console.log('c:\\govorilka\\bin\\ffmpeg.exe -i ' + file_wav + ' ' + file_mp3);
+										ffmpeg.stdout.on('data', function (data) { console.log('stdout: ' + data); });
+										ffmpeg.stderr.on('data', function (data) { console.log('stderr: ' + data); });
+										ffmpeg.on('exit', function (code) {
+											if (extension == 'wav') {
+												html_out_wav(response,file_wav);
+											}
+											if (extension == 'mp3') {
+												html_out_mp3(response,file_mp3);
+											}
+										});
+										
+								console.log('child process exited with code ' + code);
+							});
+						});	
+					} else {
+						console.log('error: can not write text ' + text + ' into file ' + file);	// РЅРµ СЃРјРѕРіР»Рё Р·Р°РїРёСЃР°С‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ РІРѕ РІСЂРµРјРµРЅРЅС‹Р№ С„Р°Р№Р»
+					}	
+				});
+			} else {
+				console.log('error: can not opened file ' + file + ' for writing' );
+			}
+	
+		});	//end file open
+	  }				// end create file if hash.wav not exist
+	});				// end stop for user process
+  }		// end if (text)
+}
+
+// РІС‹РІРѕРґРёС‚ РІ Р±РёРЅР°СЂРЅРѕРј РІРёРґРµ С„Р°Р№Р» wav c РїСѓС‚РµРј filepath РІ Р±СЂР°СѓР·РµСЂ
+function html_out_wav(response,file_wav) {
+	fs = require("fs");
+	// wav С„Р°Р№Р» СЃРѕР·РґР°РЅ, С‚РµРїРµСЂСЊ РЅР°РґРѕ РѕС‚РґР°С‚СЊ РµРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ
+	response.writeHead(200, {"Content-Type": "audio/x-wav"});
+										//response.writeHead(200, {"Content-Type": "text/html"});
+										//fs2.readFile(file_cp1251,'binary',function(err,data){
+										//	if (!err) {
+										//		response.write(data);	
+										//	} else {
+										//		console.log('error: can not reading wav file');
+										//	}	
+										//});
+	var body = fs.readFileSync(file_wav,'binary');
+	console.log('wav file length: '+body.length);
+	response.write(body,'binary');
+										//fs2.createReadStream(file_wav).pipe(response);
+	response.end();
+	console.log('wav file is downloaded');
+}
+
+function html_out_mp3(response,file_mp3) {
+	fs = require("fs");
+	// wav СЂВ В©В« СЃВ®В§В¤Р±В­В¬ С‚ТђР‡ТђСЂСВ В­Р±ТђВ® РїС–В¤Р±С–С Р¶В¤В® Р°Р‡В«СЂВ§В®СћР±С–ТђРјС•РЊ	
+	response.writeHead(200, {"Content-Type": "audio/mpeg"});
+										//response.writeHead(200, {"Content-Type": "text/html"});
+										//fs2.readFile(file_cp1251,'binary',function(err,data){
+										//	if (!err) {
+										//		response.write(data);	
+										//	} else {
+										//		console.log('error: can not reading wav file');
+										//	}	
+										//});
+	var body = fs.readFileSync(file_mp3,'binary');
+	console.log('mp3 file length: '+body.length);
+	response.write(body,'binary');
+										//fs2.createReadStream(file_wav).pipe(response);
+	response.end();
+	console.log('mp3 file is downloaded');
+}
+
+exports.audiomessage = audiomessage;
+exports.wav = wav;
+exports.mp3 = mp3;
+exports.start = start;
+exports.upload = upload;
