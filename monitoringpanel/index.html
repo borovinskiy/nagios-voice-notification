@@ -24,7 +24,7 @@ function play_next() {
     active_msg++;
     queue_number();
     jQuery('#msg-block').prepend("<div id='msg-block-"+active_msg+"' style='border: 1px; border-bottom: 1px solid #ccc;'>"+msg_queue[active_msg]+"</div>");
-    jQuery('#wav-block').html('<audio controls="controls" autoplay onended = "play_next();" > <source src="http://text_to_speech.example.com/wav?text=' + msg_queue[active_msg] +'" type="audio/wav" mediagroup="monitoring" />You browser not support audio!</audio>');  
+    jQuery('#wav-block').html('<audio controls="controls" autoplay onended = "play_next();" > <source src="http://text_to_speech.example.com/wav?text=' + msg_queue[active_msg] +'" type="audio/wav" mediagroup="monitoring" /><source src="http://text_to_speech.example.com/mp3?text=' + msg_queue[active_msg] +'" type="audio/mpeg"/>You browser not support audio!</audio>');  
   }
   else if ( active_msg == msg_queue.length-1 ) {		// if not more message
     playing = false;
