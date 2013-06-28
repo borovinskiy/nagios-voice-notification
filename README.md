@@ -31,5 +31,9 @@ http://gnuwin32.sourceforge.net/packages/libiconv.htm
 
 License: GPL
 
+## Дополнительные зависимости
 
+ffmpeg
+
+License: GPLv3
 
